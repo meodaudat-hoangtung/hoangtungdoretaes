@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DORETAes - Hệ thống Quản lý Học liệu</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']],
+                processEscapes: true
+            },
+            options: {
+                skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre']
+            }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700;800&display=swap');
+        body { font-family: 'Lexend', sans-serif; background-color: #0f172a; color: #e2e8f0; }
+        .hero-gradient { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); }
+        .modal-active { display: flex !important; animation: fadeIn 0.2s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+        
+        /* Hiệu ứng ẩn hiện đáp án */
+        .answer-hidden { opacity: 0; transform: translateY(5px); pointer-events: none; transition: all 0.3s ease; }
+        .answer-visible { opacity: 1; transform: translateY(0); pointer-events: auto; }
+        
+        .ai-input { background-color: #1e293b; border: 1px solid #334155; color: white; transition: all 0.2s; }
+        .ai-input:focus { border-color: #10b981; box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2); outline: none; }
+        #pdf-template { color: black !important; background: white !important; font-family: "Times New Roman", serif; padding: 40px; }
+        .pdf-q-block { margin-bottom: 25px; page-break-inside: avoid; }
+    </style>
+</head>
+<body>
+
+    <div id="loadingOverlay" class="fixed inset-0 bg-black/90 z-[9999] flex flex-col items-center justify-center">
+        <div class="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p class="font-bold text-emerald-400 tracking-widest uppercase text-xs">Hệ thống đang khởi tạo...</p>
+    </div>
+
+    <nav class="bg-[#1e293b] border-b border-slate-700 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-6 h-16 flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+                <div class="bg-sky-600 p-2 rounded-lg text-white"><i class="fas fa-graduation-cap"></i></div>
+                <span class="text-xl font-black text-sky-400">DORETAes</span>
+            </div>
+            <div id="syncStatus" class="text-[10px] font-bold px-3 py-1 rounded-full bg-slate-800 text-slate-500 uppercase tracking-tighter">SẴN SÀNG</div>
+        </div>
+    </nav>
+
+    <header class="hero-gradient py-12 px-6 text-center border-b border-slate-800">
+        <h1 class="text-xl md:text-2xl font-bold uppercase mb-10 tracking-wide inline-block italic-none">
+            <span class="text-emerald-500">THPT TĨNH GIA 4 ỨNG DỤNG AI</span> 
+            <span class="ml-2 text-sky-500">DORETAes</span>
+        </h1>
+        
+        <div class="max-w-sm mx-auto">
+            <button onclick="openKTDG()" class="w-full bg-emerald-900/20 p-5 rounded-2xl border border-emerald-500/30 font-bold hover:bg-emerald-800/40 transition flex items-center justify-center space-x-3 text-lg shadow-lg">
+                <i class="fas fa-leaf text-2xl text-emerald-500"></i>
+                <span class="text-red-500 uppercase">TẠO CÂU HỎI</span>
+            </button>
+        </div>
+    </header>
+
+    <div id="ktdgModal" class="fixed inset-0 z-[120] hidden items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+        <div class="bg-[#0f172a] rounded-3xl shadow-2xl w-full max-w-6xl overflow-hidden flex flex-col h-[90vh] border border-slate-800">
+            <div class="p-5 border-b border-slate-800 flex justify-between items-center bg-[#0f172a]">
+                <div class="flex items-center space-x-3">
+                    <div class="text-emerald-400 text-xl"><i class="fas fa-leaf"></i></div>
+                    <h3 class="text-lg font-bold uppercase tracking-widest text-emerald-400">Hệ thống tạo câu hỏi AI</h3>
+                </div>
+                <button onclick="closeModal('ktdgModal')" class="text-2xl text-slate-500 hover:text-white transition">&times;</button>
+            </div>
+            
+            <div class="flex flex-col md:flex-row flex-1 overflow-hidden">
+                <div class="w-full md:w-80 p-6 border-r border-slate-800 overflow-y-auto bg-slate-900/40">
+                    <h4 class="text-[11px] font-black text-slate-500 mb-6 uppercase tracking-widest">Cấu hình đề thi AI</h4>
+                    <div class="space-y-5">
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="text-[10px] font-bold text-slate-500 uppercase">Khối lớp</label>
+                                <select id="aiGrade" class="w-full ai-input p-2.5 rounded-xl mt-1 text-sm">
+                                    <option value="10">Lớp 10</option>
+                                    <option value="11">Lớp 11</option>
+                                    <option value="12">Lớp 12</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-[10px] font-bold text-slate-500 uppercase">Môn học</label>
+                                <select id="aiSubject" class="w-full ai-input p-2.5 rounded-xl mt-1 text-sm">
+                                    <option value="Toán học">Toán Học</option>
+                                    <option value="Vật lý">Vật Lý</option>
+                                    <option value="Hóa học">Hóa Học</option>
+                                    <option value="Sinh học">Sinh Học</option>
+                                    <option value="Lịch sử">Lịch Sử</option>
+                                    <option value="Địa lý">Địa Lý</option>
+                                    <option value="Giáo dục KTPL">Giáo dục KTPL</option>
+                                    <option value="Ngữ văn">Ngữ Văn</option>
+                                    <option value="Tiếng Anh">Tiếng Anh</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-500 uppercase">Mức độ</label>
+                            <select id="aiLevel" class="w-full ai-input p-2.5 rounded-xl mt-1 text-sm">
+                                <option value="Nhận biết">Nhận biết</option>
+                                <option value="Thông hiểu">Thông hiểu</option>
+                                <option value="Vận dụng">Vận dụng</option>
+                                <option value="Vận dụng cao">Vận dụng cao</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-500 uppercase">Số câu hỏi</label>
+                            <input type="number" id="aiCount" value="3" min="1" max="10" class="w-full ai-input p-2.5 rounded-xl mt-1 text-sm">
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-500 uppercase">Chủ đề / Bài học</label>
+                            <input type="text" id="aiTopic" placeholder="Ví dụ: Đạo hàm, Sóng cơ..." class="w-full ai-input p-2.5 rounded-xl mt-1 text-sm">
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-500 uppercase">Dạng thức</label>
+                            <select id="aiFormat" class="w-full ai-input p-2.5 rounded-xl mt-1 text-sm">
+                                <option value="Trắc nghiệm ABCD">Trắc nghiệm ABCD</option>
+                                <option value="Trắc nghiệm Đúng/Sai">Trắc nghiệm Đúng/Sai</option>
+                                <option value="Tự luận ngắn">Tự luận ngắn</option>
+                            </select>
+                        </div>
+                        <button onclick="generateAIQuiz()" id="btnGenerate" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-4 rounded-2xl font-bold shadow-lg transition flex items-center justify-center group">
+                            <i class="fas fa-magic mr-2 group-hover:rotate-12 transition"></i> BẮT ĐẦU TẠO
+                        </button>
+                    </div>
+                </div>
+
+                <div class="flex-1 flex flex-col overflow-hidden bg-[#020617]">
+                    <div class="p-4 border-b border-slate-800/50 flex justify-between items-center bg-[#0f172a]/50">
+                        <div class="flex space-x-2">
+                            <button onclick="switchKTDGTab('preview')" id="tabPreviewBtn" class="px-5 py-2 rounded-xl text-xs font-bold transition-all bg-sky-600 text-white shadow-lg">Xem trước</button>
+                            <button onclick="switchKTDGTab('bank')" id="tabBankBtn" class="px-5 py-2 rounded-xl text-xs font-bold transition-all bg-slate-800 text-slate-400 hover:text-white">Ngân hàng đề</button>
+                        </div>
+                        <div class="flex items-center space-x-3">
+                            <button onclick="toggleAllAnswers()" id="btnToggleAll" class="text-[9px] font-bold text-sky-400 uppercase bg-sky-400/10 px-3 py-1.5 rounded-full border border-sky-400/30 hover:bg-sky-400/20 transition hidden">
+                                <i class="fas fa-eye mr-1"></i> Hiện đáp án
+                            </button>
+                            <div id="aiStatusInfo" class="text-[9px] font-bold text-slate-500 uppercase bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-700">CHỜ LỆNH</div>
+                        </div>
+                    </div>
+                    
+                    <div id="aiQuizResult" class="flex-1 overflow-y-auto p-8 space-y-6">
+                        <div class="h-full flex flex-col items-center justify-center text-center opacity-30">
+                            <i class="fas fa-leaf text-7xl text-emerald-500 mb-6"></i>
+                            <p class="text-lg font-medium">Nhập thông tin bên trái để DORETAes bắt đầu soạn câu hỏi</p>
+                        </div>
+                    </div>
+
+                    <div id="ktdgActions" class="p-4 border-t border-slate-800/50 bg-[#0f172a] hidden">
+                        <button onclick="saveAndAssignQuiz()" class="w-full bg-indigo-600 hover:bg-indigo-500 py-4 rounded-2xl font-bold shadow-xl transition flex items-center justify-center">
+                            <i class="fas fa-cloud-upload-alt mr-2"></i> LƯU VÀO NGÂN HÀNG
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Xác nhận xóa -->
+    <div id="confirmDeleteModal" class="fixed inset-0 z-[200] hidden items-center justify-center p-4 bg-black/90 backdrop-blur-sm">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl">
+            <div class="w-16 h-16 bg-red-500/20 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <h3 class="text-xl font-bold text-white mb-2">Xác nhận xóa?</h3>
+            <p class="text-slate-400 text-sm mb-8">Hành động này không thể hoàn tác. Bạn có chắc chắn muốn xóa đề thi này?</p>
+            <div class="flex space-x-3">
+                <button onclick="closeModal('confirmDeleteModal')" class="flex-1 px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl font-bold transition">HỦY</button>
+                <button id="btnConfirmDeleteFinal" class="flex-1 px-4 py-3 bg-red-600 hover:bg-red-500 text-white rounded-2xl font-bold transition shadow-lg shadow-red-600/20">XÓA BỎ</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
+
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        const apiKey = ""; 
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'hvtes-master-v5';
+
+        window.storageData = { quizzes: [], currentGrade: 10, currentSubject: 'math' };
+        window.lastGeneratedQuiz = null;
+
+        const statusEl = document.getElementById('syncStatus');
+        const overlay = document.getElementById('loadingOverlay');
+
+        window.saveToCloud = async () => {
+            if (!auth.currentUser) return;
+            statusEl.innerText = "ĐANG ĐỒNG BỘ...";
+            try {
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'school_data', 'main_v5');
+                await setDoc(docRef, window.storageData);
+                statusEl.innerText = "SẴN SÀNG";
+            } catch (err) { statusEl.innerText = "LỖI KẾT NỐI"; }
+        };
+
+        function cleanRawJSON(text) {
+            try {
+                const jsonMatch = text.match(/\[\s*\{[\s\S]*\}\s*\]/);
+                if (jsonMatch) {
+                    return jsonMatch[0];
+                }
+                return text.trim();
+            } catch (e) {
+                return text;
+            }
+        }
+
+        window.generateAIQuiz = async () => {
+            const btn = document.getElementById('btnGenerate');
+            const aiStatus = document.getElementById('aiStatusInfo');
+            const config = {
+                grade: document.getElementById('aiGrade').value,
+                subject: document.getElementById('aiSubject').value,
+                level: document.getElementById('aiLevel').value,
+                count: document.getElementById('aiCount').value,
+                topic: document.getElementById('aiTopic').value,
+                format: document.getElementById('aiFormat').value
+            };
+
+            if(!config.topic) { alert("Vui lòng nhập chủ đề!"); return; }
+
+            btn.disabled = true;
+            btn.innerHTML = `<i class="fas fa-circle-notch fa-spin mr-2"></i> ĐANG SOẠN THẢO...`;
+            aiStatus.innerText = "ĐANG TƯ DUY...";
+
+            let systemPrompt = `Bạn là một chuyên gia giáo dục Việt Nam. Hãy tạo ${config.count} câu hỏi môn ${config.subject} lớp ${config.grade}, chủ đề "${config.topic}", mức độ "${config.level}", dạng thức "${config.format}".
+            YÊU CẦU QUAN TRỌNG:
+            - Trả về kết quả dưới dạng mảng JSON thuần túy.
+            - Các công thức toán học PHẢI sử dụng định dạng LaTeX kẹp giữa dấu $ (ví dụ: $\\frac{1}{2}$).
+            - Trong chuỗi JSON, dấu gạch chéo ngược trong LaTeX phải được thoát (escape) đúng cách: ví dụ dùng \\\\frac thay vì \\frac.
+            - KHÔNG bao gồm bất kỳ lời giải thích nào ngoài khối JSON.`;
+
+            if (config.format === "Trắc nghiệm Đúng/Sai") {
+                systemPrompt += `\nCấu trúc JSON mẫu: [{"question": "Nội dung câu hỏi dẫn", "subQuestions": [{"text": "Mệnh đề A", "answer": "Đúng"}, {"text": "Mệnh đề B", "answer": "Sai"}]}]`;
+            } else if (config.format === "Tự luận ngắn") {
+                systemPrompt += `\nCấu trúc JSON mẫu: [{"question": "Câu hỏi", "answer": "Đáp án ngắn gọn"}]`;
+            } else {
+                systemPrompt += `\nCấu trúc JSON mẫu: [{"question": "Câu hỏi", "options": ["Phương án A", "Phương án B", "Phương án C", "Phương án D"], "answer": "Phương án A"}]`;
+            }
+
+            try {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: systemPrompt }] }],
+                        generationConfig: { 
+                            responseMimeType: "application/json", 
+                            temperature: 0.2 
+                        }
+                    })
+                });
+
+                const data = await response.json();
+                let rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
+                const cleanedText = cleanRawJSON(rawText);
+                const quizJson = JSON.parse(cleanedText);
+                
+                window.lastGeneratedQuiz = {
+                    id: Date.now(),
+                    title: `Đề AI - ${config.subject} - ${config.level} - ${config.topic}`,
+                    grade: config.grade, subject: config.subject, level: config.level,
+                    topic: config.topic, format: config.format, 
+                    questions: quizJson,
+                    date: new Date().toLocaleDateString('vi-VN')
+                };
+
+                window.renderQuizPreview(quizJson, config.format);
+                window.switchKTDGTab('preview');
+            } catch (e) { 
+                console.error("Lỗi parse JSON:", e);
+                alert("AI trả về định dạng không hợp lệ. Hãy thử nhấn lại."); 
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = `<i class="fas fa-magic mr-2"></i> BẮT ĐẦU TẠO`;
+                aiStatus.innerText = "CHỜ LỆNH";
+            }
+        };
+
+        async function init() {
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                await signInWithCustomToken(auth, __initial_auth_token);
+            } else { await signInAnonymously(auth); }
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'school_data', 'main_v5');
+                    onSnapshot(docRef, (snap) => {
+                        if (snap.exists()) {
+                            window.storageData = { ...window.storageData, ...snap.data() };
+                            // Nếu đang ở tab bank, cần re-render để cập nhật danh sách
+                            const bankBtn = document.getElementById('tabBankBtn');
+                            if(bankBtn && bankBtn.classList.contains('bg-sky-600')) {
+                                window.switchKTDGTab('bank');
+                            }
+                        }
+                        overlay.style.display = 'none';
+                    }, (err) => {
+                        overlay.style.display = 'none';
+                    });
+                }
+            });
+        }
+        init();
+    </script>
+
+    <script>
+        let allAnswersVisible = false;
+
+        function openModal(id) { document.getElementById(id).classList.add('modal-active'); }
+        function closeModal(id) { document.getElementById(id).classList.remove('modal-active'); }
+        function openKTDG() { openModal('ktdgModal'); }
+
+        function toggleAllAnswers() {
+            const answers = document.querySelectorAll('.answer-box');
+            const btn = document.getElementById('btnToggleAll');
+            allAnswersVisible = !allAnswersVisible;
+            
+            answers.forEach(ans => {
+                if (allAnswersVisible) {
+                    ans.classList.add('answer-visible');
+                    ans.classList.remove('answer-hidden');
+                } else {
+                    ans.classList.remove('answer-visible');
+                    ans.classList.add('answer-hidden');
+                }
+            });
+
+            btn.innerHTML = allAnswersVisible ? `<i class="fas fa-eye-slash mr-1"></i> Ẩn đáp án` : `<i class="fas fa-eye mr-1"></i> Hiện đáp án`;
+            btn.classList.toggle('bg-sky-400/10', !allAnswersVisible);
+            btn.classList.toggle('bg-amber-400/10', allAnswersVisible);
+            btn.classList.toggle('text-sky-400', !allAnswersVisible);
+            btn.classList.toggle('text-amber-400', allAnswersVisible);
+        }
+
+        function toggleSingleAnswer(id) {
+            const ans = document.getElementById(id);
+            if (ans.classList.contains('answer-hidden')) {
+                ans.classList.remove('answer-hidden');
+                ans.classList.add('answer-visible');
+            } else {
+                ans.classList.add('answer-hidden');
+                ans.classList.remove('answer-visible');
+            }
+        }
+
+        function requestDeleteQuiz(index) {
+            const modal = document.getElementById('confirmDeleteModal');
+            const confirmBtn = document.getElementById('btnConfirmDeleteFinal');
+            
+            modal.classList.add('modal-active');
+            
+            confirmBtn.onclick = () => {
+                window.storageData.quizzes.splice(index, 1);
+                window.saveToCloud();
+                closeModal('confirmDeleteModal');
+                switchKTDGTab('bank');
+            };
+        }
+
+        function switchKTDGTab(tab) {
+            const container = document.getElementById('aiQuizResult');
+            const previewBtn = document.getElementById('tabPreviewBtn');
+            const bankBtn = document.getElementById('tabBankBtn');
+            const toggleAllBtn = document.getElementById('btnToggleAll');
+
+            if(tab === 'bank') {
+                previewBtn.className = "px-5 py-2 rounded-xl text-xs font-bold transition-all bg-slate-800 text-slate-400 hover:text-white";
+                bankBtn.className = "px-5 py-2 rounded-xl text-xs font-bold transition-all bg-sky-600 text-white shadow-lg";
+                document.getElementById('ktdgActions').classList.add('hidden');
+                toggleAllBtn.classList.add('hidden');
+                
+                const quizzes = window.storageData.quizzes || [];
+                container.innerHTML = quizzes.length === 0 
+                    ? `<div class="text-center py-20 opacity-20">Trống</div>`
+                    : `<div class="grid grid-cols-1 gap-4">${quizzes.map((q, idx) => `
+                        <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex flex-col md:flex-row justify-between items-center group">
+                            <div class="mb-3 md:mb-0">
+                                <h4 class="font-bold text-emerald-400 text-sm">${q.title}</h4>
+                                <p class="text-[9px] text-slate-500 mt-1 uppercase font-bold tracking-widest">${q.subject} - ${q.level} - ${q.date || ''}</p>
+                            </div>
+                            <div class="flex space-x-2">
+                                <button onclick="exportQuizToWord(${idx})" class="bg-blue-500/10 text-blue-400 hover:bg-blue-600 hover:text-white px-4 py-2 rounded-xl transition text-xs font-bold" title="Xuất Word"><i class="fas fa-file-word"></i></button>
+                                <button onclick="exportQuizToPDF(${idx})" class="bg-red-500/10 text-red-400 hover:bg-red-600 hover:text-white px-4 py-2 rounded-xl transition text-xs font-bold" title="Xuất PDF"><i class="fas fa-file-pdf"></i></button>
+                                <button onclick="window.renderQuizPreview(window.storageData.quizzes[${idx}].questions, window.storageData.quizzes[${idx}].format); window.switchKTDGTab('preview');" class="bg-emerald-600/10 text-emerald-400 hover:bg-emerald-600 hover:text-white p-3 rounded-xl transition"><i class="fas fa-eye"></i></button>
+                                <button onclick="requestDeleteQuiz(${idx})" class="bg-red-500/10 text-red-500 hover:bg-red-600 hover:text-white p-3 rounded-xl transition"><i class="fas fa-trash-alt"></i></button>
+                            </div>
+                        </div>`).join('')}</div>`;
+            } else {
+                previewBtn.className = "px-5 py-2 rounded-xl text-xs font-bold transition-all bg-sky-600 text-white shadow-lg";
+                bankBtn.className = "px-5 py-2 rounded-xl text-xs font-bold transition-all bg-slate-800 text-slate-400 hover:text-white";
+                if(window.lastGeneratedQuiz) {
+                    toggleAllBtn.classList.remove('hidden');
+                    window.renderQuizPreview(window.lastGeneratedQuiz.questions, window.lastGeneratedQuiz.format);
+                    document.getElementById('ktdgActions').classList.remove('hidden');
+                }
+            }
+        }
+
+        window.renderQuizPreview = (questions, format) => {
+            const container = document.getElementById('aiQuizResult');
+            if(!questions || !questions.length) return;
+            
+            allAnswersVisible = false;
+            document.getElementById('btnToggleAll').innerHTML = `<i class="fas fa-eye mr-1"></i> Hiện đáp án`;
+
+            container.innerHTML = questions.map((q, idx) => {
+                const qId = `ans-${idx}`;
+                let html = `<div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-inner mb-4 relative group/card">
+                    <div class="flex justify-between items-start mb-4">
+                        <p class="text-xs font-bold text-sky-400 uppercase">Câu ${idx+1}:</p>
+                        <button onclick="toggleSingleAnswer('${qId}')" class="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-400 px-2 py-1 rounded-lg transition">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                    <div class="text-slate-200 mb-4 text-lg font-medium leading-relaxed">${q.question || ""}</div>`;
+                
+                if (format === "Trắc nghiệm ABCD" && q.options) {
+                    html += `<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        ${q.options.map((o, i) => `<div class="p-4 bg-black/30 border border-slate-800 rounded-xl text-sm"><span class="text-sky-500 font-bold">${String.fromCharCode(65+i)}.</span> ${o}</div>`).join('')}
+                    </div>`;
+                }
+                
+                if (format === "Trắc nghiệm Đúng/Sai" && q.subQuestions) {
+                    html += `<div class="space-y-3 mt-4 border-l-2 border-slate-700 pl-4">
+                        ${q.subQuestions.map((sq, i) => {
+                            const sqId = `ans-sq-${idx}-${i}`;
+                            return `
+                            <div class="p-3 bg-black/20 border border-slate-800/50 rounded-xl text-sm flex justify-between items-center group/sq">
+                                <span class="text-slate-300"><span class="text-amber-500 font-bold">${String.fromCharCode(97+i)}.</span> ${sq.text}</span>
+                                <div class="flex items-center space-x-2">
+                                    <span id="${sqId}" class="answer-box text-[10px] font-bold bg-emerald-600 text-white px-3 py-1 rounded answer-hidden">${sq.answer}</span>
+                                    <button onclick="toggleSingleAnswer('${sqId}')" class="opacity-0 group-hover/sq:opacity-100 transition text-[9px] text-slate-500 hover:text-white">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        `}).join('')}
+                    </div>`;
+                }
+
+                if (q.answer && format !== "Trắc nghiệm Đúng/Sai") {
+                    html += `<div class="mt-4 pt-4 border-t border-slate-800 flex items-center justify-between">
+                        <div id="${qId}" class="answer-box text-xs font-bold bg-emerald-600 text-white px-4 py-2 rounded-lg answer-hidden">ĐÁP ÁN: ${q.answer}</div>
+                    </div>`;
+                } else if (format === "Trắc nghiệm Đúng/Sai") {
+                    html += `<div id="${qId}" class="hidden"></div>`;
+                }
+
+                html += `</div>`;
+                return html;
+            }).join('');
+            
+            if(window.MathJax) MathJax.typesetPromise();
+        }
+
+        function saveAndAssignQuiz() {
+            if(!window.lastGeneratedQuiz) return;
+            if(!window.storageData.quizzes) window.storageData.quizzes = [];
+            window.storageData.quizzes.unshift(window.lastGeneratedQuiz);
+            window.saveToCloud();
+            alert("Đã lưu vào Ngân hàng đề!");
+            switchKTDGTab('bank');
+        }
+
+        window.exportQuizToPDF = async function(index) {
+            const quiz = window.storageData.quizzes[index];
+            if(!quiz) return;
+            const contentDiv = document.createElement('div');
+            contentDiv.innerHTML = `<div id="pdf-template">
+                <h2 style="text-align:center;">${quiz.title}</h2>
+                <div>${quiz.questions.map((q, i) => `
+                    <div class="pdf-q-block">
+                        <strong>Câu ${i+1}:</strong> ${q.question}
+                        ${q.options ? `<div style="margin:10px 0 0 20px;">${q.options.map((o, j) => `<div>${String.fromCharCode(65+j)}. ${o}</div>`).join('')}</div>` : ''}
+                    </div>`).join('')}
+                </div>
+            </div>`;
+            if (window.MathJax) await MathJax.typesetPromise([contentDiv]);
+            html2pdf().from(contentDiv).set({ margin: 15, filename: `${quiz.title}.pdf` }).save();
+        };
+
+        window.exportQuizToWord = async function(index) {
+            const quiz = window.storageData.quizzes[index];
+            if(!quiz) return;
+            const header = "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'></head><body>";
+            const footer = "</body></html>";
+            let htmlBody = `<h2 style="text-align:center;">${quiz.title}</h2>`;
+            quiz.questions.forEach((q, i) => {
+                htmlBody += `<p><strong>Câu ${i+1}:</strong> ${q.question}</p>`;
+                if(q.options) htmlBody += `<ol type="A">${q.options.map(o => `<li>${o}</li>`).join('')}</ol>`;
+            });
+            const blob = new Blob(['\ufeff', header + htmlBody + footer], { type: 'application/msword' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `${quiz.title}.doc`;
+            link.click();
+        };
+    </script>
+</body>
+</html>
